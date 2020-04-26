@@ -1,0 +1,65 @@
+version: "3.7"
+services:
+  rtmp-server:
+    build:
+      dockerfile: Dockerfile.dev
+      context: ./rtmp-server
+    restart: always
+    networks:
+      - streaming-bridge
+    ports:
+      - "1935:1935"
+      - "8000:8000"
+
+  # Website
+  web-client:
+    build:
+      dockerfile: Dockerfile.dev
+      context: ./web-client
+    volumes:
+      - ./web-client:/app
+    networks:
+      - streaming-bridge
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.web-client.entrypoints=web"
+      - "traefik.http.routers.web-client.rule=Host(`dev.ui.localhost`)"
+
+  node-server:
+    build:
+      dockerfile: Dockerfile.dev
+      context: ./node-server
+    volumes:
+      - ./node-server:/app
+    networks:
+      - streaming-bridge
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.node-server.entrypoints=web"
+      - "traefik.http.routers.node-server.rule=Host(`dev.api.localhost`)"
+
+  traefik:
+    image: traefik:v2.1
+    container_name: traefik_streaming
+    ports:
+      - "443:443"
+      - "80:80"
+      - "8080:80"
+    networks:
+      - streaming-bridge
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.api.rule=Host(`dev.traefik.localhost`)"
+      - "traefik.http.routers.api.service=api@internal"
+
+networks:
+  streaming-bridge:
+    driver: bridge
